@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user game data and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "displayName": { "type": "string", "description": "User's display name." },
+        "photoURL": { "type": "string", "description": "User's avatar URL." },
+        "coins": { "type": "integer", "description": "Amount of coins the user has." },
+        "gems": { "type": "integer", "description": "Amount of gems the user has." },
+        "level": { "type": "integer", "description": "User's current level." },
+        "xp": { "type": "integer", "description": "User's current experience points." },
+        "selectedPieceId": { "type": "string", "description": "ID of the currently equipped piece design." },
+        "selectedStickerId": { "type": "string", "description": "ID of the currently equipped sticker/crown." }
+      },
+      "required": ["uid", "coins", "gems", "level", "xp"]
+    },
+    "Chest": {
+      "title": "Game Chest",
+      "description": "Represents a chest that can be unlocked for rewards.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique chest ID." },
+        "uid": { "type": "string", "description": "Owner's user ID." },
+        "type": { "type": "string", "enum": ["professional", "master", "supreme"], "description": "Type of chest." },
+        "unlockTime": { "type": "string", "format": "date-time", "description": "Time when the chest will be ready to open." },
+        "status": { "type": "string", "enum": ["locked", "unlocking", "ready"], "description": "Current status of the chest." }
+      },
+      "required": ["uid", "type", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/users/{userId}/chests/{chestId}": {
+      "schema": "Chest",
+      "description": "User's earned chests."
+    }
+  }
+}
