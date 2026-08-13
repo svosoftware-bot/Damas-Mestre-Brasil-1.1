@@ -12,6 +12,10 @@ body {
   background-attachment: fixed;
 }
 
+@utility mask-gradient-top {
+  mask-image: linear-gradient(to bottom, transparent, black 40px);
+}
+
 @utility scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

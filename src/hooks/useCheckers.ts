@@ -1,4 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { 
+  isWithinBoard, 
+  getValidMovesForPiece, 
+  getMaxCapturesForPiece, 
+  getAllValidMoves 
+} from '../lib/checkersLogic';
 
 export type Player = 'white' | 'black';
 export type PieceType = 'pawn' | 'king';
@@ -16,16 +22,23 @@ export interface Move {
   from: { row: number; col: number };
   to: { row: number; col: number };
   captured?: string[]; // IDs of captured pieces
+  isKing?: boolean; // If the piece became a king or was already a king
 }
 
-export function useCheckers(boardSize: number = 8) {
+export function useCheckers(boardSize: number = 8, initialRules: 'brazilian' | 'english' = 'brazilian') {
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [turn, setTurn] = useState<Player>('white');
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [validMoves, setValidMoves] = useState<Move[]>([]);
-  const [winner, setWinner] = useState<Player | null>(null);
+  const [winner, setWinner] = useState<Player | 'draw' | null>(null);
+  const [scores, setScores] = useState<{ white: number, black: number }>({ white: 0, black: 0 });
   const [turnCaptures, setTurnCaptures] = useState<string[]>([]);
-  const [lastBestPlay, setLastBestPlay] = useState<{ player: Player, count: number, pieceId: string } | null>(null);
+  const [turnMoves, setTurnMoves] = useState<Move[]>([]);
+  const [initialPiecesForTurn, setInitialPiecesForTurn] = useState<Piece[]>([]);
+  const [lastBestPlay, setLastBestPlay] = useState<{ player: Player, count: number, pieceId: string, moves: Move[], initialBoard: Piece[] } | null>(null);
+  const [rules, setRules] = useState<'brazilian' | 'english'>(initialRules);
+
+  const nextStartingPlayerRef = useRef<Player>('white');
 
   // Initialize board
   const initBoard = useCallback(() => {
@@ -56,11 +69,18 @@ export function useCheckers(boardSize: number = 8) {
       }
     }
     setPieces(newPieces);
-    setTurn('white');
+    
+    const currentStartingPlayer = nextStartingPlayerRef.current;
+    setTurn(currentStartingPlayer);
+    nextStartingPlayerRef.current = currentStartingPlayer === 'white' ? 'black' : 'white';
+
     setSelectedPieceId(null);
     setValidMoves([]);
     setWinner(null);
+    setScores({ white: 0, black: 0 });
     setTurnCaptures([]);
+    setTurnMoves([]);
+    setInitialPiecesForTurn([]);
     setLastBestPlay(null);
   }, [boardSize]);
 
@@ -72,160 +92,32 @@ export function useCheckers(boardSize: number = 8) {
     return pieces.find(p => p.row === row && p.col === col);
   };
 
-  const isWithinBoard = (row: number, col: number) => {
-    return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
-  };
-
-  const getValidMovesForPiece = useCallback((piece: Piece, currentPieces: Piece[], mustJump: boolean = false) => {
-    const moves: Move[] = [];
-    const directions = piece.type === 'king' 
-      ? [[1, 1], [1, -1], [-1, 1], [-1, -1]] 
-      : piece.player === 'white' 
-        ? [[-1, 1], [-1, -1]] 
-        : [[1, 1], [1, -1]];
-
-    // Jumps (Mandatory in most rules)
-    const jumpDirections = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
-    for (const [dr, dc] of jumpDirections) {
-      if (piece.type === 'king') {
-        // Flying king jumps: search for a piece to jump over
-        let nextR = piece.row + dr;
-        let nextC = piece.col + dc;
-        while (isWithinBoard(nextR + dr, nextC + dc)) {
-          const midPiece = currentPieces.find(p => p.row === nextR && p.col === nextC);
-          if (midPiece) {
-            if (midPiece.player !== piece.player) {
-              // Found an opponent piece, check if square after is empty
-              let endR = nextR + dr;
-              let endC = nextC + dc;
-              while (isWithinBoard(endR, endC)) {
-                const endPiece = currentPieces.find(p => p.row === endR && p.col === endC);
-                if (!endPiece) {
-                  moves.push({
-                    pieceId: piece.id,
-                    from: { row: piece.row, col: piece.col },
-                    to: { row: endR, col: endC },
-                    captured: [midPiece.id]
-                  });
-                  endR += dr;
-                  endC += dc;
-                } else {
-                  break;
-                }
-              }
-            }
-            break; // Blocked by own piece or already jumped
-          }
-          nextR += dr;
-          nextC += dc;
-        }
-      } else {
-        const midR = piece.row + dr;
-        const midC = piece.col + dc;
-        const endR = piece.row + dr * 2;
-        const endC = piece.col + dc * 2;
-
-        if (isWithinBoard(endR, endC)) {
-          const midPiece = currentPieces.find(p => p.row === midR && p.col === midC);
-          const endPiece = currentPieces.find(p => p.row === endR && p.col === endC);
-
-          if (midPiece && midPiece.player !== piece.player && !endPiece) {
-            moves.push({
-              pieceId: piece.id,
-              from: { row: piece.row, col: piece.col },
-              to: { row: endR, col: endC },
-              captured: [midPiece.id]
-            });
-          }
-        }
-      }
-    }
-
-    if (mustJump) return moves;
-
-    // Regular moves
-    if (moves.length === 0) {
-      for (const [dr, dc] of directions) {
-        if (piece.type === 'king') {
-          // Flying kings: move any distance
-          let nextR = piece.row + dr;
-          let nextC = piece.col + dc;
-          while (isWithinBoard(nextR, nextC)) {
-            const nextPiece = currentPieces.find(p => p.row === nextR && p.col === nextC);
-            if (!nextPiece) {
-              moves.push({
-                pieceId: piece.id,
-                from: { row: piece.row, col: piece.col },
-                to: { row: nextR, col: nextC }
-              });
-              nextR += dr;
-              nextC += dc;
-            } else {
-              break;
-            }
-          }
-        } else {
-          const nextR = piece.row + dr;
-          const nextC = piece.col + dc;
-          if (isWithinBoard(nextR, nextC)) {
-            const nextPiece = currentPieces.find(p => p.row === nextR && p.col === nextC);
-            if (!nextPiece) {
-              moves.push({
-                pieceId: piece.id,
-                from: { row: piece.row, col: piece.col },
-                to: { row: nextR, col: nextC }
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return moves;
-  }, [boardSize]);
-
   const selectPiece = (id: string) => {
     const piece = pieces.find(p => p.id === id);
     if (!piece || piece.player !== turn) return;
 
-    // Check if any piece MUST jump
-    const allJumps: Move[] = [];
-    pieces.filter(p => p.player === turn).forEach(p => {
-      allJumps.push(...getValidMovesForPiece(p, pieces, true));
-    });
-
-    const pieceMoves = getValidMovesForPiece(piece, pieces, allJumps.length > 0);
+    const allMoves = getAllValidMoves(turn, pieces, boardSize, rules);
+    const pieceMoves = allMoves.filter(m => m.pieceId === id);
     
     setSelectedPieceId(id);
     setValidMoves(pieceMoves);
   };
 
-  const getAllValidMoves = useCallback((player: Player, currentPieces: Piece[]) => {
-    const playerPieces = currentPieces.filter(p => p.player === player);
-    const allJumps: Move[] = [];
-    playerPieces.forEach(p => {
-      allJumps.push(...getValidMovesForPiece(p, currentPieces, true));
-    });
-
-    if (allJumps.length > 0) return allJumps;
-
-    const allRegular: Move[] = [];
-    playerPieces.forEach(p => {
-      allRegular.push(...getValidMovesForPiece(p, currentPieces, false));
-    });
-    return allRegular;
-  }, [getValidMovesForPiece]);
-
-  const makeMove = (move: Move) => {
+  const makeMove = (move: Move, isAi: boolean = false) => {
     const piece = pieces.find(p => p.id === move.pieceId);
     if (!piece) return;
 
+    if (turnMoves.length === 0) {
+      setInitialPiecesForTurn([...pieces]);
+    }
+
+    const reachedPromotionRow = (piece.player === 'white' && move.to.row === 0) || 
+                                (piece.player === 'black' && move.to.row === boardSize - 1);
+
+    // Temporarily move the piece to check for next jumps
     let newPieces = pieces.map(p => {
       if (p.id === move.pieceId) {
-        let newType = p.type;
-        if (p.player === 'white' && move.to.row === 0) newType = 'king';
-        if (p.player === 'black' && move.to.row === boardSize - 1) newType = 'king';
-        return { ...p, row: move.to.row, col: move.to.col, type: newType };
+        return { ...p, row: move.to.row, col: move.to.col };
       }
       return p;
     });
@@ -235,23 +127,124 @@ export function useCheckers(boardSize: number = 8) {
       const updatedTurnCaptures = [...turnCaptures, ...move.captured];
       setTurnCaptures(updatedTurnCaptures);
       
-      // Check for double jumps
-      const movedPiece = newPieces.find(p => p.id === move.pieceId)!;
-      const nextJumps = getValidMovesForPiece(movedPiece, newPieces, true);
+      // Update scores
+      setScores(prev => ({
+        ...prev,
+        [turn]: prev[turn] + move.captured!.length
+      }));
       
-      if (nextJumps.length > 0) {
+      // Brazilian/English Rule: If a pawn reaches the promotion row, it promotes and turn ends.
+      if (reachedPromotionRow && piece.type === 'pawn') {
+        const finalIsKing = true;
+        const updatedMove = { ...move, isKing: finalIsKing };
+        const updatedTurnMoves = [...turnMoves, updatedMove];
+        setTurnMoves(updatedTurnMoves);
+
+        newPieces = newPieces.map(p => {
+          if (p.id === move.pieceId) {
+            return { ...p, type: 'king' };
+          }
+          return p;
+        });
+
+        if (move.captured && !isAi) {
+          if (updatedTurnCaptures.length >= 3) {
+            setLastBestPlay({
+              player: turn,
+              count: updatedTurnCaptures.length,
+              pieceId: move.pieceId,
+              moves: updatedTurnMoves,
+              initialBoard: initialPiecesForTurn.length > 0 ? initialPiecesForTurn : [...pieces]
+            });
+          }
+        }
+
         setPieces(newPieces);
-        setSelectedPieceId(move.pieceId);
-        setValidMoves(nextJumps);
+        setTurn(turn === 'white' ? 'black' : 'white');
+        setSelectedPieceId(null);
+        setValidMoves([]);
+        setTurnCaptures([]);
+        setTurnMoves([]);
+        setInitialPiecesForTurn([]);
+        
+        // Winner check
+        const opponent = turn === 'white' ? 'black' : 'white';
+        const opponentPieces = newPieces.filter(p => p.player === opponent);
+        if (opponentPieces.length === 0) {
+          setWinner(turn);
+          return;
+        }
+        const opponentMoves = getAllValidMoves(opponent, newPieces, boardSize, rules);
+        if (opponentMoves.length === 0) {
+          setWinner(turn);
+          return;
+        }
         return;
       }
 
-      // Turn ended with captures, check if it's a best play
+      const movedPiece = newPieces.find(p => p.id === move.pieceId)!;
+      // Check for next jumps AS THE CURRENT TYPE (pawn stays pawn if it was a pawn)
+      const nextJumpsWithCounts: { move: Move, maxCaptures: number }[] = [];
+      const possibleNextJumps = getValidMovesForPiece(movedPiece, newPieces, boardSize, true, rules);
+      
+      possibleNextJumps.forEach(m => {
+        let nextNextPieces = newPieces.filter(pc => !m.captured!.includes(pc.id));
+        nextNextPieces = nextNextPieces.map(pc => {
+          if (pc.id === m.pieceId) {
+            return { ...pc, row: m.to.row, col: m.to.col };
+          }
+          return pc;
+        });
+        const nextMovedPiece = nextNextPieces.find(pc => pc.id === m.pieceId)!;
+        const totalCaptures = 1 + getMaxCapturesForPiece(nextMovedPiece, nextNextPieces, boardSize, rules);
+        nextJumpsWithCounts.push({ move: m, maxCaptures: totalCaptures });
+      });
+
+      if (nextJumpsWithCounts.length > 0) {
+        const bestNextJumps = rules === 'english'
+          ? nextJumpsWithCounts.map(j => j.move)
+          : (() => {
+              const maxPossible = Math.max(...nextJumpsWithCounts.map(j => j.maxCaptures));
+              return nextJumpsWithCounts
+                .filter(j => j.maxCaptures === maxPossible)
+                .map(j => j.move);
+            })();
+
+        // Continue turn as current type (no promotion yet)
+        const updatedMove = { ...move, isKing: piece.type === 'king' };
+        setTurnMoves([...turnMoves, updatedMove]);
+        setPieces(newPieces);
+        setSelectedPieceId(move.pieceId);
+        setValidMoves(bestNextJumps);
+        return;
+      }
+    }
+
+    // Turn ends or no more jumps available
+    // Now we check for promotion
+    const finalIsKing = reachedPromotionRow || piece.type === 'king';
+    const updatedMove = { ...move, isKing: finalIsKing };
+    const updatedTurnMoves = [...turnMoves, updatedMove];
+    setTurnMoves(updatedTurnMoves);
+
+    // Final update to pieces with promotion if applicable
+    newPieces = newPieces.map(p => {
+      if (p.id === move.pieceId) {
+        return { ...p, type: finalIsKing ? 'king' : p.type };
+      }
+      return p;
+    });
+
+    if (move.captured && !isAi) {
+      const updatedTurnCaptures = [...turnCaptures, ...move.captured];
+      // Check for best play
       if (updatedTurnCaptures.length >= 3) {
         setLastBestPlay({
           player: turn,
           count: updatedTurnCaptures.length,
-          pieceId: move.pieceId
+          pieceId: move.pieceId,
+          moves: updatedTurnMoves,
+          initialBoard: initialPiecesForTurn.length > 0 ? initialPiecesForTurn : [...pieces]
         });
       }
     }
@@ -261,26 +254,46 @@ export function useCheckers(boardSize: number = 8) {
     setSelectedPieceId(null);
     setValidMoves([]);
     setTurnCaptures([]);
+    setTurnMoves([]);
+    setInitialPiecesForTurn([]);
 
     // Check for winner
     const opponent = turn === 'white' ? 'black' : 'white';
     const opponentPieces = newPieces.filter(p => p.player === opponent);
+    
     if (opponentPieces.length === 0) {
       setWinner(turn);
+      return;
+    }
+
+    const opponentMoves = getAllValidMoves(opponent, newPieces, boardSize, rules);
+    if (opponentMoves.length === 0) {
+      setWinner(turn);
+      return;
     }
   };
 
+  const getCustomAllValidMoves = useCallback((player: Player, currentPieces: Piece[], bSize: number) => {
+    return getAllValidMoves(player, currentPieces, bSize, rules);
+  }, [rules]);
+
   return {
     pieces,
+    setPieces,
     turn,
+    setTurn,
     selectedPieceId,
     validMoves,
     winner,
+    scores,
     selectPiece,
     makeMove,
     initBoard,
     lastBestPlay,
     clearLastBestPlay: () => setLastBestPlay(null),
-    getAllValidMoves
+    getAllValidMoves: getCustomAllValidMoves,
+    setWinner,
+    rules,
+    setRules
   };
 }

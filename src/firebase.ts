@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocFromServer, FirestoreError } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocFromServer, FirestoreError, addDoc, orderBy, limit, serverTimestamp, increment, deleteField, getDocs, writeBatch, enableMultiTabIndexedDbPersistence, runTransaction } from 'firebase/firestore';
 
 // Import the Firebase configuration
 import firebaseConfig from '../firebase-applet-config.json';
@@ -8,6 +8,18 @@ import firebaseConfig from '../firebase-applet-config.json';
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Enable Offline Persistence
+enableMultiTabIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    // Multiple tabs open, persistence can only be enabled in one tab at a a time.
+    console.warn('Firestore persistence failed: Multiple tabs open');
+  } else if (err.code === 'unimplemented') {
+    // The current browser doesn't support all of the features required to enable persistence
+    console.warn('Firestore persistence failed: Browser not supported');
+  }
+});
+
 export const auth = getAuth();
 export const googleProvider = new GoogleAuthProvider();
 
@@ -75,5 +87,5 @@ async function testConnection() {
 }
 testConnection();
 
-export { signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where };
+export { signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, orderBy, limit, serverTimestamp, increment, deleteField, getDocs, writeBatch, runTransaction };
 export type { FirebaseUser, FirestoreError };

@@ -26,6 +26,89 @@ service cloud.firestore {
     //   - status: string (required) - Chest status (locked, unlocking, ready)
     //   - unlockTime: timestamp (optional) - Time when chest is ready
     //
+    // Collection: games/{gameId}/messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - senderId: string (required, immutable) - Sender's ID
+    //   - senderName: string (required) - Sender's name
+    //   - senderPhoto: string (optional) - Sender's avatar URL
+    //   - text: string (required) - Message content
+    //   - timestamp: timestamp (required) - Time sent
+    //
+    // Collection: games/{gameId}/emotes
+    // Document ID: {emoteId}
+    // Fields:
+    //   - senderId: string (required, immutable) - Sender's ID
+    //   - senderName: string (required) - Sender's name
+    //   - emoji: string (required) - The emoji character
+    //   - timestamp: timestamp (required) - Time sent
+    //
+    // Collection: clans/{clanId}
+    // Document ID: {clanId}
+    // Fields:
+    //   - name: string (required) - Clan name
+    //   - tag: string (required) - Clan tag
+    //   - leaderId: string (required) - Leader's UID
+    //   - leaderName: string (required) - Leader's name
+    //   - trophies: number (required) - Total trophies
+    //   - memberCount: number (required) - Total members
+    //   - createdAt: timestamp (required) - Creation time
+    //
+    // Collection: clans/{clanId}/members
+    // Document ID: {memberId}
+    // Fields:
+    //   - uid: string (required, immutable) - Member's UID
+    //   - name: string (required) - Member's name
+    //   - avatar: string (optional) - Member's avatar
+    //   - role: string (required) - Member's role (leader, co-leader, elder, member)
+    //   - trophies: number (required) - Member's trophies
+    //   - status: string (required) - online, offline, playing
+    //   - lastActive: timestamp (required) - Last activity time
+    //
+    // Collection: challenges
+    // Document ID: {challengeId}
+    // Fields:
+    //   - challengerId: string (required, immutable) - Challenger's UID
+    //   - challengerName: string (required) - Challenger's name
+    //   - targetId: string (required, immutable) - Target's UID
+    //   - status: string (required) - pending, accepted, declined
+    //   - timestamp: timestamp (required) - Creation time
+    //
+    // Collection: tournaments
+    // Document ID: {tournamentId}
+    // Fields:
+    //   - creatorId: string (required) - Creator's UID
+    //   - creatorName: string (required) - Creator's name
+    //   - participants: list (required) - List of participant UIDs
+    //   - status: string (required) - pending, active, finished
+    //   - createdAt: timestamp (required) - Creation time
+    //   - expiresAt: timestamp (required) - Expiration time (6h)
+    //   - matches: list (optional) - Match history
+    //   - championId: string (optional) - Winner's UID
+    //   - championName: string (optional) - Winner's name
+    //   - scores: map (optional) - User scores
+    //
+    // Collection: tournament_invites
+    // Document ID: {inviteId}
+    // Fields:
+    //   - tournamentId: string (required) - Tournament ID
+    //   - senderId: string (required) - Sender's UID
+    //   - senderName: string (required) - Sender's name
+    //   - targetId: string (required) - Recipient's UID
+    //   - status: string (required) - pending, accepted, declined
+    //   - timestamp: timestamp (required) - Creation time
+    //
+    // Collection: tournament_match_invitations
+    // Document ID: {invitationId}
+    // Fields:
+    //   - tournamentId: string (required) - Tournament ID
+    //   - matchId: string (required) - Match ID
+    //   - inviterId: string (required) - Inviter's UID
+    //   - inviterName: string (required) - Inviter's name
+    //   - targetId: string (required) - Target's UID
+    //   - status: string (required) - pending, accepted, declined, started
+    //   - createdAt: timestamp (required) - Creation time
+    //
     // ===============================================================
 
     // ===============================================================
@@ -47,9 +130,17 @@ service cloud.firestore {
              data.level is number && data.level >= 1 &&
              data.xp is number && data.xp >= 0 &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('playerId' in data) || (data.playerId is string && data.playerId.size() < 100)) &&
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500)) &&
              (!('selectedPieceId' in data) || (data.selectedPieceId is string && data.selectedPieceId.size() < 100)) &&
-             (!('selectedStickerId' in data) || (data.selectedStickerId is string && data.selectedStickerId.size() < 100));
+             (!('selectedStickerId' in data) || (data.selectedStickerId is string && data.selectedStickerId.size() < 100)) &&
+             (!('clanId' in data) || (data.clanId is string || data.clanId == null)) &&
+             (!('clanName' in data) || (data.clanName is string || data.clanName == null)) &&
+             (!('clanTag' in data) || (data.clanTag is string || data.clanTag == null)) &&
+             (!('clanRole' in data) || (data.clanRole in ['leader', 'co-leader', 'elder', 'member'] || data.clanRole == null)) &&
+             (!('status' in data) || (data.status in ['online', 'offline', 'playing'])) &&
+             (!('lastActive' in data) || (data.lastActive is timestamp)) &&
+             (!('trophies' in data) || (data.trophies is number));
     }
 
     function isValidChest(data) {
@@ -58,6 +149,104 @@ service cloud.firestore {
              data.type in ['professional', 'master', 'supreme'] &&
              data.status in ['locked', 'unlocking', 'ready'] &&
              (!('unlockTime' in data) || data.unlockTime is timestamp);
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['senderId', 'senderName', 'text', 'timestamp']) &&
+             data.senderId is string && (data.senderId == request.auth.uid || data.senderId in ['fictitious_maria', 'fictitious_matheus', 'fictitious_carlos']) &&
+             data.senderName is string && data.senderName.size() < 100 &&
+             data.text is string && data.text.size() < 500 &&
+             data.timestamp is timestamp &&
+             (!('senderPhoto' in data) || (data.senderPhoto is string && data.senderPhoto.size() < 500));
+    }
+
+    function isValidEmote(data) {
+      return data.keys().hasAll(['senderId', 'senderName', 'emoji', 'timestamp']) &&
+             data.senderId is string && (data.senderId == request.auth.uid || data.senderId in ['fictitious_maria', 'fictitious_matheus', 'fictitious_carlos']) &&
+             data.senderName is string && data.senderName.size() < 100 &&
+             data.emoji is string && data.emoji.size() < 1000 &&
+             data.timestamp is timestamp &&
+             (!('isImage' in data) || data.isImage is bool) &&
+             (!('isVideo' in data) || data.isVideo is bool) &&
+             (!('sound' in data) || (data.sound is string || data.sound == null));
+    }
+
+    function isValidClan(data) {
+      return data.keys().hasAll(['name', 'tag', 'leaderId', 'leaderName', 'trophies', 'memberCount', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 30 &&
+             data.tag is string && data.tag.size() >= 3 && data.tag.size() <= 4 &&
+             data.leaderId is string &&
+             data.leaderName is string &&
+             data.trophies is number &&
+             data.memberCount is number &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidClanMember(data) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'trophies', 'status', 'lastActive']) &&
+             data.uid is string &&
+             data.name is string &&
+             data.role in ['leader', 'co-leader', 'elder', 'member'] &&
+             data.trophies is number &&
+             data.status in ['online', 'offline', 'playing'] &&
+             data.lastActive is timestamp &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() < 500));
+    }
+
+    function getClanMemberRole(clanId, userId) {
+      return get(/databases/$(database)/documents/clans/$(clanId)/members/$(userId)).data.role;
+    }
+
+    function isValidChallenge(data) {
+      return data.keys().hasAll(['challengerId', 'challengerName', 'targetId', 'status', 'timestamp']) &&
+             data.challengerId is string &&
+             data.challengerName is string &&
+             data.targetId is string &&
+             data.status in ['pending', 'accepted', 'declined', 'started'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidTournament(data) {
+      return data.keys().hasAll(['creatorId', 'participants', 'status', 'createdAt', 'expiresAt']) &&
+             data.creatorId is string &&
+             data.participants is list &&
+             data.status in ['pending', 'active', 'finished'] &&
+             data.createdAt is timestamp &&
+             data.expiresAt is timestamp;
+    }
+
+    function isValidTournamentInvite(data) {
+      return data.keys().hasAll(['tournamentId', 'senderId', 'targetId', 'status', 'timestamp']) &&
+             data.tournamentId is string &&
+             data.senderId is string &&
+             data.targetId is string &&
+             data.status in ['pending', 'accepted', 'declined'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidTournamentMatchInvitation(data) {
+      return data.keys().hasAll(['tournamentId', 'matchId', 'inviterId', 'inviterName', 'targetId', 'status', 'createdAt']) &&
+             data.tournamentId is string &&
+             data.matchId is string &&
+             data.inviterId is string &&
+             data.inviterName is string &&
+             data.targetId is string &&
+             data.status in ['pending', 'accepted', 'declined', 'started'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidQuickMatchmaking(data) {
+      return data.keys().hasAll(['userId', 'userName', 'status', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() < 100 &&
+             data.status in ['waiting', 'matched'] &&
+             (!('userPhoto' in data) || (data.userPhoto is string && data.userPhoto.size() < 500)) &&
+             (!('gameId' in data) || (data.gameId is string || data.gameId == null)) &&
+             (!('opponentId' in data) || (data.opponentId is string || data.opponentId == null)) &&
+             (!('opponentName' in data) || (data.opponentName is string || data.opponentName == null)) &&
+             (!('rules' in data) || (data.rules in ['brazilian', 'english'])) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
     }
 
     function isAdmin() {
@@ -71,8 +260,8 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      // Users can only read their own profile
-      allow read: if isOwner(userId) || isAdmin();
+      // Anyone authenticated can read basic profile info
+      allow read: if isAuthenticated();
       
       // Users can only create their own profile with initial values
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
@@ -92,6 +281,148 @@ service cloud.firestore {
       // Validate chest data on write
       allow create, update: if isOwner(userId) && isValidChest(request.resource.data) &&
                               request.resource.data.uid == request.auth.uid;
+    }
+
+    match /games/{gameId}/messages/{messageId} {
+      // Authenticated users can read messages in any game
+      allow read: if isAuthenticated();
+      
+      // Authenticated users can create messages as themselves
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data);
+      
+      // Messages are immutable
+      allow update, delete: if false;
+    }
+
+    match /games/{gameId}/emotes/{emoteId} {
+      // Authenticated users can read emotes in any game
+      allow read: if isAuthenticated();
+      
+      // Authenticated users can create emotes as themselves
+      allow create: if isAuthenticated() && isValidEmote(request.resource.data);
+      
+      // Emotes are immutable
+      allow update, delete: if false;
+    }
+
+    match /clans/{clanId} {
+      // Anyone authenticated can read clan metadata
+      allow read: if isAuthenticated();
+      
+      // Anyone authenticated can create a clan
+      allow create: if isAuthenticated() && isValidClan(request.resource.data) &&
+                      request.resource.data.leaderId == request.auth.uid;
+      
+      // Only leader or admin can update clan metadata, but anyone can update memberCount and trophies (for joining/leaving)
+      allow update: if isAdmin() || 
+                      (isAuthenticated() && resource.data.leaderId == request.auth.uid) ||
+                      (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'trophies']));
+      
+      // Only leader or admin can delete a clan
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.leaderId == request.auth.uid);
+    }
+
+    match /clans/{clanId}/members/{memberId} {
+      // Members of the clan can read other members
+      allow read: if isAuthenticated();
+      
+      // Users can create their own member entry
+      allow create: if isOwner(memberId) && isValidClanMember(request.resource.data) &&
+                      request.resource.data.uid == request.auth.uid;
+      
+      // Users can update their own status/trophies, leaders/co-leaders can update roles
+      allow update: if isAdmin() || 
+                      (isOwner(memberId) && isValidClanMember(request.resource.data) && request.resource.data.role == resource.data.role) ||
+                      (isAuthenticated() && get(/databases/$(database)/documents/clans/$(clanId)).data.leaderId == request.auth.uid) ||
+                      (isAuthenticated() && getClanMemberRole(clanId, request.auth.uid) == 'co-leader' && 
+                       (resource.data.role == 'elder' || resource.data.role == 'member') && 
+                       (request.resource.data.role == 'elder' || request.resource.data.role == 'member' || request.resource.data.role == 'co-leader'));
+      
+      // Users can leave, leaders/co-leaders/elders can kick based on hierarchy
+      allow delete: if isOwner(memberId) || isAdmin() ||
+                      (isAuthenticated() && get(/databases/$(database)/documents/clans/$(clanId)).data.leaderId == request.auth.uid) ||
+                      (isAuthenticated() && getClanMemberRole(clanId, request.auth.uid) == 'co-leader' && (resource.data.role == 'elder' || resource.data.role == 'member')) ||
+                      (isAuthenticated() && getClanMemberRole(clanId, request.auth.uid) == 'elder' && resource.data.role == 'member');
+    }
+
+    match /challenges/{challengeId} {
+      // Users can read challenges where they are involved
+      allow read: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || resource.data.targetId == request.auth.uid);
+      
+      // Users can create challenges as themselves
+      allow create: if isAuthenticated() && isValidChallenge(request.resource.data) && (request.resource.data.challengerId == request.auth.uid);
+      
+      // Target can update status (accept/decline), or challenger can cancel (if still pending)
+      allow update: if isAuthenticated() && (
+        (resource.data.targetId == request.auth.uid && request.resource.data.status in ['accepted', 'declined']) ||
+        (resource.data.challengerId == request.auth.uid && request.resource.data.status in ['started', 'declined'])
+      );
+      
+      // Cleanup: Allow deletion if challenge is no longer pending
+      allow delete: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || resource.data.targetId == request.auth.uid);
+    }
+
+    match /games/{gameId} {
+      // Anyone authenticated can read (for spectating)
+      allow read: if isAuthenticated();
+      
+      // Anyone authenticated can create a game if they are a player
+      allow create: if isAuthenticated() && (request.auth.uid in request.resource.data.players);
+      
+      // Only players can update game state, but anyone can update the spectators list
+      allow update: if isAuthenticated() && (
+        (request.auth.uid in resource.data.players) || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spectators']))
+      );
+      
+      // Only players can delete
+      allow delete: if isAuthenticated() && (request.auth.uid in resource.data.players);
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTournament(request.resource.data) && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        (resource.data.creatorId == request.auth.uid) ||
+        (request.auth.uid in resource.data.participants) ||
+        (request.auth.uid == request.resource.data.targetId) // For accepting invites
+      );
+      allow delete: if isAuthenticated() && resource.data.creatorId == request.auth.uid;
+    }
+
+    match /tournament_invites/{inviteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTournamentInvite(request.resource.data) && request.resource.data.senderId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        (resource.data.targetId == request.auth.uid && request.resource.data.status in ['accepted', 'declined']) ||
+        (resource.data.senderId == request.auth.uid && request.resource.data.status == 'declined')
+      );
+      allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.targetId == request.auth.uid);
+    }
+
+    match /tournament_match_invitations/{invitationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTournamentMatchInvitation(request.resource.data) && request.resource.data.inviterId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        (resource.data.targetId == request.auth.uid && request.resource.data.status in ['accepted', 'declined']) ||
+        (resource.data.inviterId == request.auth.uid && request.resource.data.status in ['declined', 'started'])
+      );
+      allow delete: if isAuthenticated() && (resource.data.inviterId == request.auth.uid || resource.data.targetId == request.auth.uid);
+    }
+
+    match /quick_matchmaking/{matchmakingId} {
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.status == 'waiting');
+      allow list: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidQuickMatchmaking(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid && isValidQuickMatchmaking(request.resource.data)) ||
+        (resource.data.status == 'waiting' && 
+         request.resource.data.status == 'matched' && 
+         request.resource.data.opponentId == request.auth.uid &&
+         request.resource.data.userId == resource.data.userId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'gameId', 'opponentId', 'opponentName', 'updatedAt']))
+      );
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // Default deny

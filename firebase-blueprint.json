@@ -6,6 +6,7 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "playerId": { "type": "string", "description": "Unique generated player ID / code (e.g. 8-digit number)." },
         "displayName": { "type": "string", "description": "User's display name." },
         "photoURL": { "type": "string", "description": "User's avatar URL." },
         "coins": { "type": "integer", "description": "Amount of coins the user has." },
@@ -13,7 +14,16 @@
         "level": { "type": "integer", "description": "User's current level." },
         "xp": { "type": "integer", "description": "User's current experience points." },
         "selectedPieceId": { "type": "string", "description": "ID of the currently equipped piece design." },
-        "selectedStickerId": { "type": "string", "description": "ID of the currently equipped sticker/crown." }
+        "selectedStickerId": { "type": "string", "description": "ID of the currently equipped sticker/crown." },
+        "ownedEmotes": { "type": "array", "items": { "type": "string" }, "description": "List of IDs of emotes owned by the user." },
+        "clanId": { "type": "string", "description": "ID of the clan the user belongs to." },
+        "clanName": { "type": "string", "description": "Name of the clan." },
+        "clanTag": { "type": "string", "description": "Tag of the clan." },
+        "clanRole": { "type": "string", "enum": ["leader", "co-leader", "elder", "member"], "description": "Role in the clan." },
+        "status": { "type": "string", "enum": ["online", "offline", "playing"], "description": "Current online status." },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Last time the user was active." },
+        "trophies": { "type": "integer", "description": "Total trophies of the user." },
+        "forfeits": { "type": "integer", "description": "Number of games the user resigned from." }
       },
       "required": ["uid", "coins", "gems", "level", "xp"]
     },
@@ -29,9 +39,172 @@
         "status": { "type": "string", "enum": ["locked", "unlocking", "ready"], "description": "Current status of the chest." }
       },
       "required": ["uid", "type", "status"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A message sent in a game chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID." },
+        "senderId": { "type": "string", "description": "User ID of the sender." },
+        "senderName": { "type": "string", "description": "Display name of the sender." },
+        "senderPhoto": { "type": "string", "description": "Avatar URL of the sender." },
+        "text": { "type": "string", "description": "Content of the message." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Time when the message was sent." }
+      },
+      "required": ["senderId", "senderName", "text", "timestamp"]
+    },
+    "Emote": {
+      "title": "Game Emote",
+      "description": "An emoji/emote sent in a game session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique emote ID." },
+        "senderId": { "type": "string", "description": "User ID of the sender." },
+        "senderName": { "type": "string", "description": "Display name of the sender." },
+        "emoji": { "type": "string", "description": "The emoji character or asset URL." },
+        "isImage": { "type": "boolean", "description": "Whether the emote is static image-based." },
+        "isVideo": { "type": "boolean", "description": "Whether the emote is video-based." },
+        "sound": { "type": "string", "description": "Audio sound effect file URL." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Time when the emote was sent." }
+      },
+      "required": ["senderId", "senderName", "emoji", "timestamp"]
+    },
+    "Clan": {
+      "title": "Player Clan",
+      "description": "A group of players competing together.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique clan ID." },
+        "name": { "type": "string", "description": "Name of the clan." },
+        "tag": { "type": "string", "description": "3-4 letter clan tag." },
+        "leaderId": { "type": "string", "description": "User ID of the clan leader." },
+        "leaderName": { "type": "string", "description": "Display name of the clan leader." },
+        "trophies": { "type": "integer", "description": "Total trophies of the clan." },
+        "memberCount": { "type": "integer", "description": "Number of members in the clan." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the clan was created." }
+      },
+      "required": ["name", "tag", "leaderId", "leaderName", "createdAt"]
+    },
+    "ClanMember": {
+      "title": "Clan Member",
+      "description": "A player belonging to a clan.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID of the member." },
+        "name": { "type": "string", "description": "Display name of the member." },
+        "avatar": { "type": "string", "description": "Avatar URL of the member." },
+        "role": { "type": "string", "enum": ["leader", "co-leader", "elder", "member"], "description": "Role in the clan." },
+        "trophies": { "type": "integer", "description": "Trophies of the member." },
+        "status": { "type": "string", "enum": ["online", "offline", "playing"], "description": "Current online status." },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Last time the user was active." }
+      },
+      "required": ["uid", "name", "role", "status", "lastActive"]
+    },
+    "Challenge": {
+      "title": "Game Challenge",
+      "description": "A challenge sent from one player to another.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique challenge ID." },
+        "challengerId": { "type": "string", "description": "User ID of the player sending the challenge." },
+        "challengerName": { "type": "string", "description": "Display name of the challenger." },
+        "targetId": { "type": "string", "description": "User ID of the player being challenged." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "started"], "description": "Current status of the challenge." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the challenge was sent." }
+      },
+      "required": ["challengerId", "challengerName", "targetId", "status", "timestamp"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "A real-time checkers game session.",
+      "type": "object",
+      "properties": {
+        "players": { "type": "array", "items": { "type": "string" } },
+        "playerNames": { "type": "object" },
+        "board": { "type": "string" },
+        "turn": { "type": "string", "enum": ["white", "black"] },
+        "winner": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "finished"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["players", "board", "turn", "status"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "A competitive tournament between multiple players.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique tournament ID." },
+        "creatorId": { "type": "string", "description": "User ID of the tournament creator." },
+        "creatorName": { "type": "string", "description": "Display name of the creator." },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "List of user IDs participating." },
+        "status": { "type": "string", "enum": ["pending", "active", "finished"], "description": "Current status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the tournament was created." },
+        "expiresAt": { "type": "string", "format": "date-time", "description": "When the tournament ends (6h limit)." },
+        "matches": { "type": "array", "items": { "type": "object" }, "description": "List of match pairings and results." },
+        "championId": { "type": "string", "description": "User ID of the winner." },
+        "championName": { "type": "string", "description": "Name of the winner." },
+        "scores": { "type": "object", "description": "Map of userId to points." }
+      },
+      "required": ["creatorId", "participants", "status", "createdAt", "expiresAt"]
+    },
+    "TournamentInvite": {
+      "title": "Tournament Invite",
+      "description": "An invitation to join a tournament.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique invite ID." },
+        "tournamentId": { "type": "string", "description": "ID of the tournament." },
+        "senderId": { "type": "string", "description": "User ID of the sender." },
+        "senderName": { "type": "string", "description": "Name of the sender." },
+        "targetId": { "type": "string", "description": "User ID of the recipient." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"], "description": "Invite status." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the invite was sent." }
+      },
+      "required": ["tournamentId", "senderId", "targetId", "status", "timestamp"]
+    },
+    "TournamentMatchInvitation": {
+      "title": "Tournament Match Invitation",
+      "description": "An invitation to play a specific match in a tournament.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique invitation ID." },
+        "tournamentId": { "type": "string", "description": "ID of the tournament." },
+        "matchId": { "type": "string", "description": "ID of the match." },
+        "inviterId": { "type": "string", "description": "User ID of the inviter." },
+        "inviterName": { "type": "string", "description": "Name of the inviter." },
+        "targetId": { "type": "string", "description": "User ID of the recipient." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "started"], "description": "Invitation status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the invitation was created." }
+      },
+      "required": ["tournamentId", "matchId", "inviterId", "inviterName", "targetId", "status", "createdAt"]
+    },
+    "QuickMatchmaking": {
+      "title": "Quick Matchmaking",
+      "description": "Represents an online queue entry for quick matching.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique matchmaking document ID." },
+        "userId": { "type": "string", "description": "The queueing user's ID." },
+        "userName": { "type": "string", "description": "The queueing user's display name." },
+        "userPhoto": { "type": "string", "description": "The queueing user's avatar URL." },
+        "status": { "type": "string", "enum": ["waiting", "matched"], "description": "The queue status." },
+        "gameId": { "type": "string", "description": "The created game ID after match." },
+        "opponentId": { "type": "string", "description": "The matched opponent user ID." },
+        "opponentName": { "type": "string", "description": "The matched opponent display name." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Time when the user queued." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Time when the match was made." }
+      },
+      "required": ["userId", "userName", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
+    "/quick_matchmaking/{matchmakingId}": {
+      "schema": "QuickMatchmaking",
+      "description": "Online queue entries for quick matching."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile documents."
@@ -39,6 +212,38 @@
     "/users/{userId}/chests/{chestId}": {
       "schema": "Chest",
       "description": "User's earned chests."
+    },
+    "/games/{gameId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages for a specific game session."
+    },
+    "/games/{gameId}/emotes/{emoteId}": {
+      "schema": "Emote",
+      "description": "Emotes for a specific game session."
+    },
+    "/clans/{clanId}": {
+      "schema": "Clan",
+      "description": "Clan metadata."
+    },
+    "/clans/{clanId}/members/{memberId}": {
+      "schema": "ClanMember",
+      "description": "Members of a specific clan."
+    },
+    "/challenges/{challengeId}": {
+      "schema": "Challenge",
+      "description": "Game challenges between players."
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": "Tournament",
+      "description": "Tournament data."
+    },
+    "/tournament_invites/{inviteId}": {
+      "schema": "TournamentInvite",
+      "description": "Tournament invitations."
+    },
+    "/tournament_match_invitations/{invitationId}": {
+      "schema": "TournamentMatchInvitation",
+      "description": "Tournament match invitations."
     }
   }
 }
