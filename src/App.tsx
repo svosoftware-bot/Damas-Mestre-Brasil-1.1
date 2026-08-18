@@ -485,7 +485,7 @@ function AppContent() {
   }, [settings]);
   const [tournamentId, setTournamentId] = useState<string | null>(null);
   const [tournamentMatchId, setTournamentMatchId] = useState<string | null>(null);
-  const { user, profile, loading, login, logout, updateProfile } = useAuth();
+  const { user, profile, loading, login, loginAsGuest, logout, updateProfile } = useAuth();
   const [savedBestPlays, setSavedBestPlays] = useState<BestPlay[]>([]);
   const [spectatorBackgroundId, setSpectatorBackgroundId] = useState<string | null>(null);
   const selectedBg = BACKGROUNDS.find(bg => bg.id === (screen === 'game' && spectatorBackgroundId ? spectatorBackgroundId : profile?.selectedBackgroundId)) || BACKGROUNDS[0];
@@ -1268,7 +1268,7 @@ function AppContent() {
 
         <AnimatePresence mode="wait">
           {screen === 'splash' && (
-            <SplashScreen key="splash" onLogin={login} playClick={playClick} />
+            <SplashScreen key="splash" onLogin={login} onLoginAsGuest={loginAsGuest} playClick={playClick} />
           )}
           {screen === 'main-menu' && profile && (
             <MainMenu 
@@ -1955,7 +1955,7 @@ function TopBar({ profile, onSettings, onFriends, onProfile, playClick }: { prof
   );
 }
 
-function SplashScreen({ onLogin, playClick }: { onLogin: () => void, playClick: () => void, key?: string }) {
+function SplashScreen({ onLogin, onLoginAsGuest, playClick }: { onLogin: () => void, onLoginAsGuest: () => void, playClick: () => void, key?: string }) {
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -1980,7 +1980,14 @@ function SplashScreen({ onLogin, playClick }: { onLogin: () => void, playClick: 
 
         <div className="w-full space-y-4 mt-12">
           <button 
-            onClick={() => { playClick(); onLogin(); }}
+            onClick={() => { 
+              playClick(); 
+              if (!navigator.onLine) {
+                onLoginAsGuest();
+              } else {
+                onLogin();
+              }
+            }}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl font-bold text-lg shadow-2xl border-t border-white/20 border-b-[6px] border-blue-900 active:border-b-0 active:translate-y-1.5 transition-all flex items-center justify-center gap-3"
           >
             <Users size={24} />
@@ -1988,15 +1995,22 @@ function SplashScreen({ onLogin, playClick }: { onLogin: () => void, playClick: 
           </button>
           
           <button 
-            onClick={() => { playClick(); onLogin(); }}
+            onClick={() => { playClick(); onLoginAsGuest(); }}
             className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-400 rounded-xl font-bold text-lg shadow-2xl border-t border-white/20 border-b-[6px] border-orange-800 active:border-b-0 active:translate-y-1.5 transition-all flex items-center justify-center gap-3"
           >
             <User size={24} />
-            Jogue como Convidado
+            Jogue como Convidado (Modo Offline)
           </button>
 
           <button 
-            onClick={() => { playClick(); onLogin(); }}
+            onClick={() => { 
+              playClick(); 
+              if (!navigator.onLine) {
+                onLoginAsGuest();
+              } else {
+                onLogin();
+              }
+            }}
             className="w-full py-4 bg-gradient-to-r from-green-600 to-green-500 rounded-xl font-bold text-lg shadow-2xl border-t border-white/20 border-b-[6px] border-green-900 active:border-b-0 active:translate-y-1.5 transition-all flex items-center justify-center gap-3"
           >
             <Play size={24} />
